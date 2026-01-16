@@ -35,7 +35,10 @@ A full-screen, modern terminal task manager built with Python curses. Features a
 ### Quick Start
 
 ```bash
-# Run directly
+# Run with td alias (add 'alias td="python3 /home/milan/opencode_test/agentnovo/taskmaster.py"' to your shell rc)
+td
+
+# Or run directly with python
 python3 -m taskmaster
 
 # Or make executable and run
@@ -50,7 +53,7 @@ chmod +x taskmaster.py
 pip install --user .
 
 # Then run from anywhere
-taskmaster
+td
 ```
 
 ### Create Alias
@@ -58,7 +61,13 @@ taskmaster
 Add to `~/.bashrc` or `~/.zshrc`:
 
 ```bash
-alias t='python3 /path/to/taskmaster.py'
+alias td='python3 /home/milan/opencode_test/agentnovo/taskmaster.py'
+```
+
+Then run with:
+
+```bash
+td
 ```
 
 ## Requirements
