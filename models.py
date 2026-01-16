@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import uuid4
 
@@ -75,14 +75,30 @@ class Task:
             return False
         return datetime.now() > self.due_date
 
-    def days_until_due(self) -> Optional[int]:
+    def is_due_soon(self, hours: int = 24) -> bool:
+        if self.due_date is None or self.status == TaskStatus.DONE:
+            return False
+        return datetime.now() < self.due_date <= datetime.now() + timedelta(hours=hours)
+
+    def days_until_due(self) -> Optional[float]:
         if self.due_date is None:
             return None
         delta = self.due_date - datetime.now()
-        return delta.days
+        return delta.total_seconds() / 3600
+
+    def get_deadline_status(self) -> str:
+        if self.due_date is None:
+            return "none"
+        if self.status == TaskStatus.DONE:
+            return "done"
+        if self.is_overdue():
+            return "overdue"
+        if self.is_due_soon():
+            return "soon"
+        return "normal"
 
     def __repr__(self) -> str:
-        status_symbol = "✓" if self.status == TaskStatus.DONE else "○"
+        status_symbol = "●" if self.status == TaskStatus.DONE else "○"
         return f"{status_symbol} [{self.priority.name[0]}] {self.description}"
 
     def __eq__(self, other: object) -> bool:
