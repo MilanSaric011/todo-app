@@ -1,33 +1,52 @@
 # TaskMaster AI - Professional TUI Task Manager
 
-A full-screen, modern terminal task manager built with Python curses. Features a clean interface with keyboard navigation, priority management, search, and sorting capabilities.
+A full-screen, modern terminal task manager built with Python curses. Features a clean Zen-Dark interface with keyboard navigation, priority management, real-time search, and deadline tracking.
+
+![TaskMaster AI Screenshot](https://via.placeholder.com/800x400?text=TaskMaster+AI+TUI)
 
 ## Features
 
-- **Modern Dashboard** - Full-screen UI with border, header stats, and footer controls
-- **Priority System** - Low (blue), Medium (yellow), High (red) priority levels
-- **Search & Sort** - Full-text search and multiple sort options
-- **Smart Filtering** - Filter by All/Pending/Done status
-- **Visual Feedback** - Color-coded tasks, full-width selection bar, notifications
-- **Keyboard Navigation** - Full keyboard control with Home/End support
-- **Persistent Storage** - Auto-saves to `~/.taskmaster_ai.json`
+### 🎨 Visual Design
+- **Zen-Dark Theme** - Muted color palette inspired by Nord/Dracula
+- **Progress Bar** - Visual completion indicator (│███░░░░░│ 50%)
+- **Smart Icons** - ○ pending, ● done, !/!!/!!! for priority levels
+- **Full-row Selection** - Frosted highlighting with color-coded text
+- **Deadline Visualization** - OVERDUE (red/bold), DUE <24h (yellow)
 
-## Controls
+### 📋 Task Management
+- Create, edit, delete tasks
+- Priority levels: Low (!), Medium (!!), High (!!!)
+- Deadline tracking with visual status
+- Archive completed tasks (press `M`)
+
+### 🔍 Search & Filter
+- **Real-time Search** - Press `s` and type to filter instantly
+- Filter by: All, Pending, Done
+- Search query displayed in header
+
+### 📊 Sorting & Organization
+- Sort by: Created date, Priority, Alphabetical
+- Pending tasks always at top, done tasks at bottom
+- Home/End key navigation for quick access
+
+### ⌨️ Keyboard Controls
 
 | Key | Action |
 |-----|--------|
 | `n` | Add new task |
-| `d` | Delete task (with confirmation) |
 | `e` | Edit task description |
-| `p` | Change priority |
+| `d` | Delete task (with confirmation) |
 | `Space` | Toggle task status |
-| `s` | Search tasks |
-| `r` | Cycle sort (created/priority/alpha) |
-| `R` | Toggle sort order |
+| `p` | Change priority |
+| `s` | Start real-time search |
+| `M` | Archive all done tasks |
 | `↑/↓` or `j/k` | Navigate tasks |
 | `Home` | Jump to first task |
 | `End` | Jump to last task |
 | `Tab` | Cycle filters (All → Pending → Done) |
+| `r` | Cycle sort (created → priority → alpha) |
+| `R` | Toggle sort order |
+| `Esc` | Exit search mode |
 | `q` | Quit |
 
 ## Installation
@@ -35,13 +54,13 @@ A full-screen, modern terminal task manager built with Python curses. Features a
 ### Quick Start
 
 ```bash
-# Run with td alias (add 'alias td="python3 /home/milan/opencode_test/agentnovo/taskmaster.py"' to your shell rc)
+# Run with td alias (add to shell rc)
 td
 
 # Or run directly with python
 python3 -m taskmaster
 
-# Or make executable and run
+# Or make executable
 chmod +x taskmaster.py
 ./taskmaster.py
 ```
@@ -64,7 +83,7 @@ Add to `~/.bashrc` or `~/.zshrc`:
 alias td='python3 /home/milan/opencode_test/agentnovo/taskmaster.py'
 ```
 
-Then run with:
+Then run:
 
 ```bash
 td
@@ -88,10 +107,26 @@ Tasks are saved to `~/.taskmaster_ai.json`:
     "status": "PENDING|DONE",
     "priority": "LOW|MEDIUM|HIGH",
     "created_at": "ISO timestamp",
-    "due_date": null,
+    "due_date": "ISO timestamp or null",
     "updated_at": "ISO timestamp"
   }
 ]
+```
+
+## Progress Bar
+
+The header displays a visual progress bar showing task completion:
+
+```
+│███░░░░░│ 30%
+│███████░│ 70%
+│████████│ 100%
+```
+
+## Keyboard Shortcuts Reference
+
+```
+ n=New | d=Del | e=Edit | p=Priority | Space=Toggle | s=Search | r=Sort | ↑↓/jk=Nav | Tab=Filter | Home/End | M=Archive | q=Quit 
 ```
 
 ## License
