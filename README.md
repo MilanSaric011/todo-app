@@ -1,17 +1,17 @@
 # TaskMaster AI - Professional TUI Task Manager
 
-A full-screen, modern terminal task manager built with Python curses. Features a clean Zen-Dark interface with keyboard navigation, priority management, real-time search, and deadline tracking.
+A full-screen, modern terminal task manager built with Python curses. Features a clean AI Agent-inspired dark interface with keyboard navigation, priority management, real-time search, and deadline tracking.
 
-![TaskMaster AI Screenshot](https://via.placeholder.com/800x400?text=TaskMaster+AI+TUI)
+![TaskMaster AI Screenshot](Screenshot_20260117_130131.png)
 
 ## Features
 
 ### 🎨 Visual Design
-- **Zen-Dark Theme** - Muted color palette inspired by Nord/Dracula
-- **Progress Bar** - Visual completion indicator (│███░░░░░│ 50%)
-- **Smart Icons** - ○ pending, ● done, !/!!/!!! for priority levels
-- **Full-row Selection** - Frosted highlighting with color-coded text
-- **Deadline Visualization** - OVERDUE (red/bold), DUE <24h (yellow)
+- **AI Agent Theme** - Minimalist dark aesthetic with #34baeb accent color
+- **Progress Bar** - Visual completion indicator with ✔/○ symbols
+- **Status Icons** - ✔ done, ○ pending, priority tags [!]/[!!]
+- **Selection Pointer** - ➤ indicator with accent color highlighting
+- **Clean Typography** - White text on dark background, dimmed completed tasks
 
 ### 📋 Task Management
 - Create, edit, delete tasks
@@ -118,9 +118,8 @@ Tasks are saved to `~/.taskmaster_ai.json`:
 The header displays a visual progress bar showing task completion:
 
 ```
-│███░░░░░│ 30%
-│███████░│ 70%
-│████████│ 100%
+[✔✔✔○○○○] 3/7
+[✔✔✔✔✔✔✔] 7/7
 ```
 
 ## Keyboard Shortcuts Reference
