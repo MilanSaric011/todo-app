@@ -2,7 +2,7 @@
 
 A full-screen, modern terminal task manager built with Python curses. Features a clean minimalist dark interface with keyboard navigation, priority management, real-time search, and deadline tracking.
 
-![TaskMaster Screenshot](Screenshot_20260117_142342.png)
+![TaskMaster Screenshot](Screenshot_20260117_144002.png)
 
 ## Features
 

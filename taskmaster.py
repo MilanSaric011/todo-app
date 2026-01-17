@@ -306,7 +306,7 @@ class TaskMaster:
             filled = int(pct * bar_w)
             
             label = " Completion "
-            self._safe_addstr(4, 2, label, curses.color_pair(COLOR_PAIRS["text_dim"][0]))
+            self._safe_addstr(4, 2, label, curses.color_pair(COLOR_PAIRS["brand_accent"][0]))
             
             bar_start = 2 + len(label) + 1
             self._safe_addstr(4, bar_start, UI_SYMBOLS["progress_done"] * filled, curses.color_pair(COLOR_PAIRS["brand_accent"][0]))
@@ -319,6 +319,11 @@ class TaskMaster:
             self.stdscr.hline(5, 2, curses.ACS_HLINE, width - 4)
             self.stdscr.attroff(curses.color_pair(COLOR_PAIRS["border"][0]))
         except curses.error: pass
+
+        # Column Headers
+        self._safe_addstr(6, 4, "STATUS", curses.A_BOLD | curses.color_pair(COLOR_PAIRS["text_dim"][0]))
+        self._safe_addstr(6, 11, "PRIO", curses.A_BOLD | curses.color_pair(COLOR_PAIRS["text_dim"][0]))
+        self._safe_addstr(6, 16, "DESCRIPTION", curses.A_BOLD | curses.color_pair(COLOR_PAIRS["text_dim"][0]))
 
     def draw_tasks(self) -> None:
         if not self.stdscr: return
@@ -347,6 +352,11 @@ class TaskMaster:
             status = UI_SYMBOLS["done"] if task.status == TaskStatus.DONE else UI_SYMBOLS["pending"]
             desc = task.description
             
+            # Priority indicator
+            prio_sym = "!" * task.priority.value
+            prio_color_name = f"priority_{task.priority.name.lower()}"
+            prio_c = COLOR_PAIRS[prio_color_name][0] if prio_color_name in COLOR_PAIRS else COLOR_PAIRS["text_dim"][0]
+            
             due = ""
             due_c = COLOR_PAIRS["text_dim"][0]
             if task.due_date:
@@ -357,21 +367,30 @@ class TaskMaster:
                 elif task.is_due_soon():
                     due_c = COLOR_PAIRS["due_soon"][0]
 
-            max_d = width - 15 - len(due)
+            # Adjust max description length to account for column widths
+            max_d = width - 20 - len(due)
             if len(desc) > max_d: desc = desc[:max_d-3] + "..."
 
             if sel:
                 self._safe_addstr(y, 1, f" {UI_SYMBOLS['selection']} ", curses.color_pair(COLOR_PAIRS["brand_accent"][0]) | curses.A_BOLD)
                 c_sym = COLOR_PAIRS["brand_accent"][0] if task.status != TaskStatus.DONE else COLOR_PAIRS["task_done"][0]
-                self._safe_addstr(y, 5, status, curses.color_pair(c_sym) | curses.A_BOLD)
+                self._safe_addstr(y, 6, status, curses.color_pair(c_sym) | curses.A_BOLD)
+                
+                # Draw priority
+                self._safe_addstr(y, 11, prio_sym, curses.color_pair(prio_c) | curses.A_BOLD)
+                
                 c_txt = COLOR_PAIRS["text_normal"][0] if task.status != TaskStatus.DONE else COLOR_PAIRS["task_done"][0]
-                self._safe_addstr(y, 8, desc, curses.color_pair(c_txt) | curses.A_BOLD)
-                if due: self._safe_addstr(y, max(8 + len(desc) + 2, width - len(due) - 2), due, curses.color_pair(due_c) | curses.A_BOLD)
+                self._safe_addstr(y, 16, desc, curses.color_pair(c_txt) | curses.A_BOLD)
+                if due: self._safe_addstr(y, max(16 + len(desc) + 2, width - len(due) - 2), due, curses.color_pair(due_c) | curses.A_BOLD)
             else:
-                self._safe_addstr(y, 5, status, curses.color_pair(COLOR_PAIRS["text_dim"][0]))
+                self._safe_addstr(y, 6, status, curses.color_pair(COLOR_PAIRS["text_dim"][0]))
+                
+                # Draw priority
+                self._safe_addstr(y, 11, prio_sym, curses.color_pair(prio_c))
+                
                 c_txt = COLOR_PAIRS["text_normal"][0] if task.status != TaskStatus.DONE else COLOR_PAIRS["task_done"][0]
-                self._safe_addstr(y, 8, desc, curses.color_pair(c_txt))
-                if due: self._safe_addstr(y, max(8 + len(desc) + 2, width - len(due) - 2), due, curses.color_pair(due_c))
+                self._safe_addstr(y, 16, desc, curses.color_pair(c_txt))
+                if due: self._safe_addstr(y, max(16 + len(desc) + 2, width - len(due) - 2), due, curses.color_pair(due_c))
 
     def draw_notification(self) -> None:
         if not self.stdscr or not self.message or not self.message_timeout: return
