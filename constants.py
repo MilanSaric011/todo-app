@@ -38,57 +38,67 @@ SORT_OPTIONS = ["created", "priority", "alpha"]
 
 DATA_FILE = Path.home() / ".taskmaster_ai.json"
 
-COLOR_PAIRS = {
-    "header_title": (1, "white", "blue"),
-    "header_time": (2, "black", "white"),
-    "header_filter": (3, "yellow", "black"),
-    "footer": (4, "black", "cyan"),
-    "empty_message": (5, "cyan", "black"),
-    "task_done": (6, "green", "black"),
-    "task_done_selected": (7, "black", "green"),
-    "task_pending_selected": (8, "black", "white"),
-    "task_priority_high": (9, "red", "black"),
-    "task_priority_medium": (10, "yellow", "black"),
-    "task_priority_low": (11, "blue", "black"),
-    "scroll_indicator": (12, "magenta", "black"),
-    "search_highlight": (13, "black", "yellow"),
-    "progress_bar": (14, "green", "black"),
-    "progress_bg": (15, "grey", "black"),
-    "overdue": (16, "red", "black"),
-    "due_soon": (17, "yellow", "black"),
-    "frost_selection": (18, "black", "white"),
-}
-
 MAX_DESCRIPTION_LENGTH = 200
 MAX_VISIBLE_TASKS = 100
 
-ZEN_DARK_COLORS = {
-    "bg_primary": 0,
-    "bg_secondary": 8,
-    "bg_header": 17,
-    "bg_selection": 61,
-    "border": 8,
-    "text_normal": 7,
-    "text_dim": 8,
-    "status_pending": 2,
-    "status_done": 6,
-    "priority_high": 9,
-    "priority_medium": 10,
-    "priority_low": 12,
-    "overdue": 9,
-    "due_soon": 10,
-    "progress_bar": 14,
-    "progress_bg": 8,
+CUSTOM_COLORS = {
+    "brand_blue": 20,
+}
+
+COLOR_PAIRS = {
+    "brand_accent": (1, 20, -1),
+    "text_normal": (2, 7, -1),
+    "text_dim": (3, 7, -1),
+    "text_bright": (4, 7, -1),
+    "border": (5, 8, -1),
+    "status_done": (6, 8, -1),
+    "status_pending": (7, 7, -1),
+    "priority_high": (8, 9, -1),
+    "priority_medium": (9, 13, -1),
+    "priority_low": (10, 20, -1),
+    "overdue": (11, 9, -1),
+    "due_soon": (12, 13, -1),
+    "progress_bar": (13, 20, -1),
+    "progress_bg": (14, 8, -1),
+    "search_prompt": (15, 7, -1),
+    "search_bracket": (16, 20, -1),
+    "header_title": (17, 20, -1),
+    "header_time": (18, 8, -1),
+    "header_filter_active": (19, 20, -1),
+    "header_filter_inactive": (20, 7, -1),
+    "footer_text": (21, 7, -1),
+    "task_done": (22, 8, -1),
+    "task_done_selected": (23, 20, -1),
 }
 
 COLOR_MAP = {
-    "coral": 9,
-    "gold": 10,
-    "slate": 12,
-    "frost": 15,
-    "deep_blue": 17,
+    "brand_blue": 20,
+    "white": 7,
     "grey": 8,
-    "green": 6,
+    "green": 10,
     "red": 9,
-    "yellow": 10,
+    "yellow": 13,
+}
+
+UI_SYMBOLS = {
+    "corner_tl": "╭",
+    "corner_tr": "╮",
+    "corner_bl": "╰",
+    "corner_br": "╯",
+    "vertical": "│",
+    "horizontal": "─",
+    "selection": "➤",
+    "done": "✔",
+    "pending": "○",
+    "box_h": "█",
+    "box_h_light": "░",
+    "box_v": "█",
+    "progress_done": "✔",
+    "progress_pending": "○",
+}
+
+COLUMN_WIDTHS = {
+    "status": 3,
+    "priority": 4,
+    "deadline": 14,
 }

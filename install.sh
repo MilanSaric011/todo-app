@@ -6,14 +6,25 @@
 
 set -e
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
+# Colors for output (OpenCode-inspired dark theme)
+OPENCODEDARK='\033[0;38;5;233m'   # #211E1E
+OPENCODELIGHT='\033[0;38;5;188m'  # #CFCECD
+OPENCODEMED='\033[0;38;5;66m'     # #656363
+OPENCODESAGE='\033[0;38;5;108m'   # #A3BE8C (green)
+OPENCODERED='\033[0;38;5;203m'    # #BF616A (red)
+OPencodeYELLOW='\033[0;38;5;221m' # #EBCB8B (yellow)
+OPencodeBLUE='\033[0;38;5;110m'   # #88C0D0 (cyan/blue)
 NC='\033[0m' # No Color
 BOLD='\033[1m'
+
+# Use OpenCode colors
+RED=${OPENCODERED}
+GREEN=${OPENCODESAGE}
+YELLOW=${OPencodeYELLOW}
+BLUE=${OPencodeBLUE}
+CYAN=${OPencodeBLUE}
+OPENCODEDARK=${OPENCODEDARK}
+OPENCODELIGHT=${OPENCODELIGHT}
 
 # Configuration
 REPO_URL="https://github.com/MilanSaric011/todo-app"
@@ -24,9 +35,9 @@ ZSH_CONFIG_FILE="$HOME/.zshrc"
 ALIAS_LINE="alias td='python3 $INSTALL_DIR/taskmaster.py'"
 
 echo ""
-echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║${NC}     ${BOLD}TaskMaster AI - Professional TUI Task Manager${NC}     ${CYAN}║${NC}"
-echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo -e "${OPENCODELIGHT}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${OPENCODELIGHT}║${NC}     ${BOLD}TaskMaster AI - Professional TUI Task Manager${NC}     ${OPENCODELIGHT}║${NC}"
+echo -e "${OPENCODELIGHT}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 
 # ═══════════════════════════════════════════════════════════════
@@ -222,9 +233,9 @@ echo -e "${GREEN}✓ Desktop entry created${NC}"
 #  Summary
 # ═══════════════════════════════════════════════════════════════
 echo ""
-echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${CYAN}║${NC}                    ${GREEN}Installation Complete!${NC}                      ${CYAN}║${NC}"
-echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
+echo -e "${OPENCODELIGHT}╔══════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${OPENCODELIGHT}║${NC}                    ${GREEN}Installation Complete!${NC}                      ${OPENCODELIGHT}║${NC}"
+echo -e "${OPENCODELIGHT}╚══════════════════════════════════════════════════════════════╝${NC}"
 echo ""
 echo -e "  ${BOLD}Quick Start:${NC}"
 echo -e "    Run: ${GREEN}td${NC}"
