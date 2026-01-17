@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
+from pathlib import Path
 from setuptools import setup, find_packages
 
+# Read README safely
+readme_path = Path(__file__).parent / "README.md"
+long_description = readme_path.read_text(encoding="utf-8") if readme_path.exists() else ""
+
 setup(
-    name="taskmaster-ai",
+    name="taskmaster",
     version="1.0.0",
     description="Professional TUI Task Manager with Zen-Dark theme",
-    long_description=open("README.md").read(),
+    long_description=long_description,
     long_description_content_type="text/markdown",
     author="Milan Saric",
     url="https://github.com/MilanSaric011/todo-app",

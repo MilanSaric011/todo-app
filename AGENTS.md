@@ -1,6 +1,6 @@
-# AGENTS.md - TaskMaster AI Development Guidelines
+# AGENTS.md - TaskMaster Development Guidelines
 
-This file provides guidelines for AI coding agents operating in this repository.
+This file provides guidelines for coding agents operating in this repository.
 
 ## Build, Lint, and Test Commands
 
@@ -149,7 +149,7 @@ Follow conventional commits format:
 - `__main__.py` - Entry point for `python3 -m taskmaster`
 
 ### Key Configuration
-- **Data file**: `~/.taskmaster_ai.json` (JSON format)
+- **Data file**: `~/.taskmaster.json` (JSON format)
 - **Default colors**: Zen-Dark inspired theme with #34baeb accent
 - **Color pairs**: Defined in `constants.py` with ID, foreground, background
 - **UI symbols**: Defined in `UI_SYMBOLS` dictionary for consistency

@@ -48,3 +48,17 @@ dmypy.json
 *.sqlite3
 database.db
 .DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# TaskMaster specific
+.taskmaster_ai.json
+.taskmaster.json
+
+# Ruff
+.ruff_cache/

@@ -1,17 +1,19 @@
 #!/usr/bin/env python3
 """
-TaskMaster AI - Professional TUI Task Manager
-Minimalist AI Agent aesthetic with clean, modern design.
+TaskMaster - Professional TUI Task Manager
+Claude Code inspired aesthetic with clean, modern design.
 """
 
 import curses
 import json
+import signal
 from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
 from constants import (
-    COLOR_PAIRS, CUSTOM_COLORS, COLUMN_WIDTHS, DATA_FILE, Priority,
+    COLOR_PAIRS, COLUMN_WIDTHS, DATA_FILE, 
+    MIN_TERMINAL_HEIGHT, MIN_TERMINAL_WIDTH, Priority,
     SORT_OPTIONS, TaskFilter, TaskStatus, UI_SYMBOLS
 )
 from models import Task
@@ -27,9 +29,10 @@ class TaskMaster:
         self.search_query: str = ""
         self.search_active: bool = False
         self.data_file: Path = DATA_FILE
-        self.stdscr: Optional[curses._CursesWindow] = None
+        self.stdscr: Optional[curses.window] = None
         self.message: Optional[str] = None
         self.message_timeout: Optional[datetime] = None
+        self.resize_flag: bool = False
 
     def load_tasks(self) -> None:
         try:
@@ -87,15 +90,17 @@ class TaskMaster:
             self.filter = TaskFilter.ALL
             self.search_query = ""
             self.search_active = False
-            self.show_message(f"Task added: {task.description[:30]}...")
+            self.show_message(f"Added: {task.description[:20]}...")
         except ValueError as e:
             self.show_message(str(e), timeout=3)
 
     def confirm_delete(self, task: Task) -> bool:
+        if not self.stdscr: return False
         try:
             height, width = self.stdscr.getmaxyx()
         except curses.error:
             return False
+            
         prompt = f'Delete "{task.description[:30]}..." ?'
         prompt_y = height // 2
         prompt_x = max(0, (width - len(prompt)) // 2)
@@ -103,19 +108,15 @@ class TaskMaster:
 
         while True:
             self.stdscr.clear()
-            try:
-                self.stdscr.border()
-            except curses.error:
-                pass
-            self._safe_addstr(prompt_y - 2, prompt_x, "DELETE TASK", curses.A_BOLD | curses.color_pair(COLOR_PAIRS["priority_high"][0]))
+            self.stdscr.border()
+            self._safe_addstr(prompt_y - 2, prompt_x, " DELETE TASK ", curses.A_BOLD | curses.A_REVERSE | curses.color_pair(COLOR_PAIRS["priority_high"][0]))
             self._safe_addstr(prompt_y, prompt_x, prompt)
 
             options = ["YES", "NO"]
-            options_y = prompt_y + 2
             for i, opt in enumerate(options):
-                marker = UI_SYMBOLS["selection"] if i == selected else "  "
+                marker = UI_SYMBOLS["selection"] if i == selected else " "
                 color = curses.color_pair(COLOR_PAIRS["brand_accent"][0]) | curses.A_BOLD if i == selected else curses.color_pair(COLOR_PAIRS["text_dim"][0])
-                self._safe_addstr(options_y + i, prompt_x - 2, f"{marker} {opt}", color)
+                self._safe_addstr(prompt_y + 2 + i, prompt_x + 2, f"{marker} {opt}", color)
 
             self.stdscr.refresh()
             key = self.stdscr.getch()
@@ -129,8 +130,6 @@ class TaskMaster:
             elif key in (ord("q"), ord("Q"), 27):
                 return False
 
-        curses.noecho()
-
     def delete_task(self, index: int) -> None:
         filtered_tasks = self.get_filtered_tasks()
         if 0 <= index < len(filtered_tasks):
@@ -140,7 +139,7 @@ class TaskMaster:
                 self.save_tasks()
                 if self.selected_index >= len(self.get_filtered_tasks()) and self.selected_index > 0:
                     self.selected_index -= 1
-                self.show_message(f"Deleted: {task_to_delete.description[:30]}...")
+                self.show_message("Task deleted")
 
     def archive_done_tasks(self) -> None:
         done_tasks = [t for t in self.tasks if t.status == TaskStatus.DONE]
@@ -152,7 +151,7 @@ class TaskMaster:
         self.tasks = [t for t in self.tasks if t.status == TaskStatus.PENDING]
         self.save_tasks()
         self.selected_index = 0
-        self.show_message(f"Archived {count} done task(s)")
+        self.show_message(f"Archived {count} task(s)")
 
     def toggle_task_status(self, index: int) -> None:
         filtered_tasks = self.get_filtered_tasks()
@@ -188,38 +187,62 @@ class TaskMaster:
                 if task.id == task_to_change.id:
                     task.update_priority(priority)
                     self.save_tasks()
-                    self.show_message(f"Priority set to {priority.name}")
+                    self.show_message(f"Priority: {priority.name}")
                     return
+
+    def set_due_date(self, index: int) -> None:
+        filtered_tasks = self.get_filtered_tasks()
+        if 0 <= index < len(filtered_tasks):
+            task_to_update = filtered_tasks[index]
+            date_input = self.get_user_input(" Due date (YYYY-MM-DD or 'none'): ")
+            if not date_input: return
+            
+            if date_input.lower() == "none":
+                for task in self.tasks:
+                    if task.id == task_to_update.id:
+                        task.set_due_date(None)
+                        self.save_tasks()
+                        self.show_message("Due date cleared")
+                        return
+            try:
+                due_date = datetime.strptime(date_input, "%Y-%m-%d")
+                due_date = due_date.replace(hour=23, minute=59)
+                for task in self.tasks:
+                    if task.id == task_to_update.id:
+                        task.set_due_date(due_date)
+                        self.save_tasks()
+                        self.show_message(f"Due: {due_date.strftime('%Y-%m-%d')}")
+                        return
+            except ValueError:
+                self.show_message("Invalid format (use YYYY-MM-DD)")
 
     def cycle_filter(self) -> None:
         filters = list(TaskFilter)
         current_index = filters.index(self.filter)
         self.filter = filters[(current_index + 1) % len(filters)]
         self.selected_index = 0
-        filter_names = {TaskFilter.ALL: "ALL", TaskFilter.PENDING: "PENDING", TaskFilter.DONE: "DONE"}
-        self.show_message(f"Filter: {filter_names[self.filter]}")
+        self.show_message(f"Filter: {self.filter.name.lower()}")
 
     def cycle_sort(self) -> None:
         current_idx = SORT_OPTIONS.index(self.sort_by)
         self.sort_by = SORT_OPTIONS[(current_idx + 1) % len(SORT_OPTIONS)]
-        self.show_message(f"Sort by: {self.sort_by}")
+        self.show_message(f"Sort: {self.sort_by}")
 
     def toggle_sort_order(self) -> None:
         self.sort_reverse = not self.sort_reverse
-        order = "descending" if self.sort_reverse else "ascending"
-        self.show_message(f"Sort order: {order}")
+        order = "desc" if self.sort_reverse else "asc"
+        self.show_message(f"Order: {order}")
 
     def set_search(self) -> None:
         self.search_active = True
         self.search_query = ""
         self.selected_index = 0
-        self.show_message("Search mode - type to filter")
+        self.show_message("Search mode active")
 
     def clear_search(self) -> None:
         self.search_query = ""
         self.search_active = False
         self.selected_index = 0
-        self.show_message("Search cleared")
 
     def update_search(self, char: str) -> None:
         if char:
@@ -240,473 +263,282 @@ class TaskMaster:
         overdue = sum(1 for t in self.tasks if t.is_overdue())
         return total, pending, done, overdue
 
-    def get_progress(self) -> float:
-        if not self.tasks:
-            return 0.0
-        done = sum(1 for t in self.tasks if t.status == TaskStatus.DONE)
-        return done / len(self.tasks)
-
     def _safe_addstr(self, y: int, x: int, text: str, attr: int = 0) -> None:
-        if y < 0 or x < 0:
-            return
+        if not self.stdscr: return
+        if y < 0 or x < 0: return
         try:
             height, width = self.stdscr.getmaxyx()
             max_len = width - x - 1
-            if max_len <= 0:
-                return
+            if max_len <= 0: return
             self.stdscr.addstr(y, x, text[:max_len], attr)
-        except curses.error:
-            pass
-
-    def _fill_line(self, y: int, start_x: int, end_x: int, attr: int = 0) -> None:
-        try:
-            width = end_x - start_x
-            if width > 0:
-                self.stdscr.addstr(y, start_x, " " * width, attr)
-        except curses.error:
-            pass
+        except curses.error: pass
 
     def draw_header(self) -> None:
+        if not self.stdscr: return
         try:
             height, width = self.stdscr.getmaxyx()
-        except curses.error:
-            return
-        if height < 12 or width < 60:
-            return
+        except curses.error: return
+        
+        # Title with reverse colors
+        title = " ▸ TaskMaster "
+        self._safe_addstr(0, 1, title, curses.A_BOLD | curses.A_REVERSE | curses.color_pair(COLOR_PAIRS["header_title"][0]))
 
-        title = "▶ TaskMaster AI"
-        title_x = max(1, (width - len(title)) // 2)
-        self._safe_addstr(0, title_x, title, curses.A_BOLD | curses.color_pair(COLOR_PAIRS["header_title"][0]))
-
-        time_str = self.get_current_time()
-        if len(time_str) < width - 4:
-            time_x = max(1, width - len(time_str) - 2)
-            self._safe_addstr(0, time_x, time_str, curses.color_pair(COLOR_PAIRS["header_time"][0]))
-
+        # Stats - Right Aligned
         stats = self.get_stats()
-        stats_text = f"total: {stats[0]}  pending: {stats[1]}  done: {stats[2]}  overdue: {stats[3]}"
-        if len(stats_text) < width - 4:
-            stats_x = max(1, (width - len(stats_text)) // 2)
-            self._safe_addstr(1, stats_x, stats_text, curses.color_pair(COLOR_PAIRS["text_dim"][0]))
+        stats_text = f"{stats[0]} total · {stats[1]} pending · {stats[2]} done "
+        if stats[3] > 0: stats_text += f"· {stats[3]} overdue "
+        if len(stats_text) < width - 20:
+            self._safe_addstr(0, width - len(stats_text) - 2, stats_text, curses.color_pair(COLOR_PAIRS["text_dim"][0]))
 
-        filter_names = {TaskFilter.ALL: "ALL", TaskFilter.PENDING: "PENDING", TaskFilter.DONE: "DONE"}
+        # Subtitle bar
+        filter_names = {TaskFilter.ALL: "all", TaskFilter.PENDING: "pending", TaskFilter.DONE: "done"}
         sort_indicator = "↓" if self.sort_reverse else "↑"
-        search_indicator = f" / {self.search_query}" if self.search_query else ""
-        status_bar = f"filter: [{filter_names[self.filter]}]  sort: {self.sort_by[0].upper()}{sort_indicator}{search_indicator}"
-        if len(status_bar) < width - 4:
-            self._safe_addstr(2, 1, status_bar, curses.color_pair(COLOR_PAIRS["text_dim"][0]))
+        info = f"view: {filter_names[self.filter]}  ·  sort: {self.sort_by} {sort_indicator}"
+        if self.search_query: info += f"  ·  search: {self.search_query}"
+        self._safe_addstr(2, 2, info, curses.color_pair(COLOR_PAIRS["text_dim"][0]))
 
-        if self.search_active and self.search_query:
-            search_pos = status_bar.find(search_indicator)
-            if search_pos > 0:
-                self._safe_addstr(2, search_pos + 2, f" {self.search_query} ", curses.color_pair(COLOR_PAIRS["search_prompt"][0]))
-
+        # Progress
+        total = len(self.tasks)
+        if total > 0:
+            done_count = sum(1 for t in self.tasks if t.status == TaskStatus.DONE)
+            pct = done_count / total
+            bar_w = min(40, width - 30)
+            filled = int(pct * bar_w)
+            
+            label = " Completion "
+            self._safe_addstr(4, 2, label, curses.color_pair(COLOR_PAIRS["text_dim"][0]))
+            
+            bar_start = 2 + len(label) + 1
+            self._safe_addstr(4, bar_start, UI_SYMBOLS["progress_done"] * filled, curses.color_pair(COLOR_PAIRS["brand_accent"][0]))
+            self._safe_addstr(4, bar_start + filled, UI_SYMBOLS["progress_pending"] * (bar_w - filled), curses.color_pair(COLOR_PAIRS["border"][0]))
+            self._safe_addstr(4, bar_start + bar_w + 2, f"{int(pct*100)}%", curses.A_BOLD | curses.color_pair(COLOR_PAIRS["brand_accent"][0]))
+        
+        # Divider
         try:
-            self.stdscr.addstr(3, 0, UI_SYMBOLS["horizontal"] * (width - 1), curses.color_pair(COLOR_PAIRS["border"][0]))
-        except curses.error:
-            pass
-
-        progress = self.get_progress()
-        bar_width = width - 4
-        done_count = sum(1 for t in self.tasks if t.status == TaskStatus.DONE)
-        pending_count = len(self.tasks) - done_count
-
-        if len(self.tasks) > 0:
-            done_symbols = UI_SYMBOLS["progress_done"] * min(done_count, bar_width)
-            remaining = max(0, bar_width - len(done_symbols))
-            pending_symbols = UI_SYMBOLS["progress_pending"] * remaining
-            progress_bar = f"[{done_symbols}{pending_symbols}] {done_count}/{len(self.tasks)}"
-        else:
-            progress_bar = f"[{UI_SYMBOLS['progress_pending'] * bar_width}] 0/0"
-
-        self._safe_addstr(4, 1, progress_bar, curses.color_pair(COLOR_PAIRS["progress_bar"][0]) | curses.A_BOLD)
-
-        try:
-            self.stdscr.addstr(5, 0, UI_SYMBOLS["horizontal"] * (width - 1), curses.color_pair(COLOR_PAIRS["border"][0]))
-        except curses.error:
-            pass
-
-        col_headers = "  STATUS             DESCRIPTION"
-        if len(col_headers) < width - 2:
-            self._safe_addstr(6, 1, col_headers, curses.A_BOLD | curses.color_pair(COLOR_PAIRS["text_dim"][0]))
-
-        try:
-            self.stdscr.addstr(7, 0, UI_SYMBOLS["horizontal"] * (width - 1), curses.color_pair(COLOR_PAIRS["border"][0]))
-        except curses.error:
-            pass
-
-    def draw_notification(self) -> None:
-        if self.message and self.message_timeout:
-            elapsed = (datetime.now() - self.message_timeout).total_seconds()
-            if elapsed > 2:
-                self.message = None
-                self.message_timeout = None
-                return
-
-        if self.message:
-            try:
-                height, width = self.stdscr.getmaxyx()
-            except curses.error:
-                return
-            msg_text = f"  {UI_SYMBOLS["selection"]} {self.message}  "
-            if len(msg_text) > width - 4:
-                msg_text = msg_text[: width - 7] + "...  "
-            msg_x = max(1, (width - len(msg_text)) // 2)
-            try:
-                self.stdscr.addstr(height - 2, msg_x, msg_text, curses.color_pair(COLOR_PAIRS["search_prompt"][0]) | curses.A_BOLD | curses.A_REVERSE)
-            except curses.error:
-                pass
-
-    def draw_footer(self) -> None:
-        try:
-            height, width = self.stdscr.getmaxyx()
-        except curses.error:
-            return
-        if height < 12 or width < 60:
-            return
-
-        footer_y = height - 1
-
-        shortcuts = f" n=new  d=del  e=edit  space=toggle  p=priority  s=search  r=sort  ↑↓/jk=nav  tab=filter  home/end  m=archive  q=quit "
-
-        if len(shortcuts) > width - 2:
-            shortcuts = shortcuts[: width - 5] + "... "
-
-        try:
-            self._safe_addstr(footer_y, 1, shortcuts, curses.color_pair(COLOR_PAIRS["footer_text"][0]))
-        except curses.error:
-            pass
+            self.stdscr.attron(curses.color_pair(COLOR_PAIRS["border"][0]))
+            self.stdscr.hline(5, 2, curses.ACS_HLINE, width - 4)
+            self.stdscr.attroff(curses.color_pair(COLOR_PAIRS["border"][0]))
+        except curses.error: pass
 
     def draw_tasks(self) -> None:
+        if not self.stdscr: return
         try:
             height, width = self.stdscr.getmaxyx()
-        except curses.error:
+        except curses.error: return
+        
+        start_y = 7
+        area_h = height - start_y - 3
+        filtered = self.get_filtered_tasks()
+
+        if not filtered:
+            msg = " No tasks found "
+            self._safe_addstr(start_y + 2, (width - len(msg)) // 2, msg, curses.color_pair(COLOR_PAIRS["text_dim"][0]) | curses.A_REVERSE)
             return
 
-        if height < 12 or width < 60:
-            return
+        start_idx = 0
+        if len(filtered) > area_h:
+            start_idx = max(0, min(self.selected_index - area_h // 2, len(filtered) - area_h))
 
-        task_area_height = height - 11
-        start_y = 8
-
-        try:
-            self.stdscr.addstr(start_y - 1, 0, " " * (width - 1), curses.color_pair(COLOR_PAIRS["border"][0]))
-        except curses.error:
-            pass
-
-        try:
-            self.stdscr.addstr(start_y + task_area_height, 0, UI_SYMBOLS["horizontal"] * (width - 1), curses.color_pair(COLOR_PAIRS["border"][0]))
-        except curses.error:
-            pass
-
-        filtered_tasks = self.get_filtered_tasks()
-
-        if not filtered_tasks:
-            if self.search_query:
-                if self.filter == TaskFilter.DONE:
-                    msg = f'No done tasks match "{self.search_query}". Press "Tab" to change filter.'
-                elif self.filter == TaskFilter.PENDING:
-                    msg = f'No pending tasks match "{self.search_query}". Press "Tab" to change filter.'
-                else:
-                    msg = f'No tasks match "{self.search_query}". Press "s" to clear search.'
-            elif self.filter == TaskFilter.DONE:
-                msg = "No done tasks. Press 'Space' on a task to mark it done. Press 'Tab' to see pending tasks."
-            elif self.filter == TaskFilter.PENDING:
-                msg = "No pending tasks. All tasks are done! Great job! Press 'Tab' to see all tasks."
-            else:
-                msg = "No tasks found. Press 'n' to add a new task."
+        for i in range(start_idx, min(start_idx + area_h, len(filtered))):
+            task = filtered[i]
+            y = start_y + (i - start_idx)
+            sel = i == self.selected_index
             
-            lines = msg.split('\n')
-            start_line = start_y + (task_area_height - len(lines)) // 2
-            for i, line in enumerate(lines):
-                line_y = start_line + i
-                line_x = max(1, (width - len(line)) // 2)
-                self._safe_addstr(line_y, line_x, line, curses.color_pair(COLOR_PAIRS["text_dim"][0]) | curses.A_DIM)
-            return
-
-        if len(filtered_tasks) > task_area_height:
-            start_idx = min(self.selected_index, len(filtered_tasks) - task_area_height)
-        else:
-            start_idx = 0
-
-        end_idx = min(start_idx + task_area_height, len(filtered_tasks))
-
-        for i in range(start_idx, end_idx):
-            task = filtered_tasks[i]
-            display_y = start_y + (i - start_idx)
-
-            is_selected = i == self.selected_index
-
-            status_symbol = UI_SYMBOLS["done"] if task.status == TaskStatus.DONE else UI_SYMBOLS["pending"]
-            desc = task.description[:50]
-
-            if task.status == TaskStatus.DONE:
-                text_attr = curses.color_pair(COLOR_PAIRS["task_done"][0]) | curses.A_DIM
-                symbol_attr = curses.color_pair(COLOR_PAIRS["task_done"][0]) | curses.A_DIM
-            else:
+            status = UI_SYMBOLS["done"] if task.status == TaskStatus.DONE else UI_SYMBOLS["pending"]
+            desc = task.description
+            
+            due = ""
+            due_c = COLOR_PAIRS["text_dim"][0]
+            if task.due_date:
+                due = f" {task.due_date.strftime('%b %d')} "
                 if task.is_overdue():
-                    text_attr = curses.color_pair(COLOR_PAIRS["overdue"][0]) | curses.A_BOLD
-                    symbol_attr = curses.color_pair(COLOR_PAIRS["priority_high"][0])
+                    due = f" OVERDUE {due}"
+                    due_c = COLOR_PAIRS["overdue"][0]
                 elif task.is_due_soon():
-                    text_attr = curses.color_pair(COLOR_PAIRS["text_normal"][0])
-                    symbol_attr = curses.color_pair(COLOR_PAIRS["priority_medium"][0])
-                else:
-                    text_attr = curses.color_pair(COLOR_PAIRS["text_normal"][0])
-                    symbol_attr = curses.color_pair(COLOR_PAIRS["brand_accent"][0])
+                    due_c = COLOR_PAIRS["due_soon"][0]
 
-            if is_selected:
-                self._safe_addstr(display_y, 1, UI_SYMBOLS["selection"], curses.color_pair(COLOR_PAIRS["brand_accent"][0]) | curses.A_BOLD)
-                self._safe_addstr(display_y, 3, status_symbol, symbol_attr)
-                self._safe_addstr(display_y, 5, desc, text_attr | curses.A_BOLD)
+            max_d = width - 15 - len(due)
+            if len(desc) > max_d: desc = desc[:max_d-3] + "..."
+
+            if sel:
+                self._safe_addstr(y, 1, f" {UI_SYMBOLS['selection']} ", curses.color_pair(COLOR_PAIRS["brand_accent"][0]) | curses.A_BOLD)
+                c_sym = COLOR_PAIRS["brand_accent"][0] if task.status != TaskStatus.DONE else COLOR_PAIRS["task_done"][0]
+                self._safe_addstr(y, 5, status, curses.color_pair(c_sym) | curses.A_BOLD)
+                c_txt = COLOR_PAIRS["text_normal"][0] if task.status != TaskStatus.DONE else COLOR_PAIRS["task_done"][0]
+                self._safe_addstr(y, 8, desc, curses.color_pair(c_txt) | curses.A_BOLD)
+                if due: self._safe_addstr(y, max(8 + len(desc) + 2, width - len(due) - 2), due, curses.color_pair(due_c) | curses.A_BOLD)
             else:
-                self._safe_addstr(display_y, 1, " ", curses.color_pair(COLOR_PAIRS["text_dim"][0]))
-                self._safe_addstr(display_y, 3, status_symbol, symbol_attr)
-                self._safe_addstr(display_y, 5, desc, text_attr)
+                self._safe_addstr(y, 5, status, curses.color_pair(COLOR_PAIRS["text_dim"][0]))
+                c_txt = COLOR_PAIRS["text_normal"][0] if task.status != TaskStatus.DONE else COLOR_PAIRS["task_done"][0]
+                self._safe_addstr(y, 8, desc, curses.color_pair(c_txt))
+                if due: self._safe_addstr(y, max(8 + len(desc) + 2, width - len(due) - 2), due, curses.color_pair(due_c))
 
+    def draw_notification(self) -> None:
+        if not self.stdscr or not self.message or not self.message_timeout: return
+        if (datetime.now() - self.message_timeout).total_seconds() > 2.5:
+            self.message = None
+            return
+        
         try:
-            self.stdscr.addstr(start_y + task_area_height + 1, 0, UI_SYMBOLS["horizontal"] * (width - 1), curses.color_pair(COLOR_PAIRS["border"][0]))
-        except curses.error:
-            pass
+            h, w = self.stdscr.getmaxyx()
+            msg = f" {self.message} "
+            self._safe_addstr(h - 2, w - len(msg) - 3, msg, curses.color_pair(COLOR_PAIRS["brand_accent"][0]) | curses.A_REVERSE | curses.A_BOLD)
+        except curses.error: pass
+
+    def draw_footer(self) -> None:
+        if not self.stdscr: return
+        try:
+            h, w = self.stdscr.getmaxyx()
+        except curses.error: return
+        
+        keys = [("n", "new"), ("d", "del"), ("e", "edit"), ("space", "toggle"), ("p", "priority"), ("u", "due"), ("s", "search"), ("r", "sort"), ("tab", "filter"), ("m", "archive"), ("q", "quit")]
+        x = 2
+        for k, a in keys:
+            lbl = f" {k} "
+            if x + len(lbl) + len(a) + 2 > w: break
+            self._safe_addstr(h - 1, x, lbl, curses.color_pair(COLOR_PAIRS["brand_accent"][0]) | curses.A_REVERSE | curses.A_BOLD)
+            x += len(lbl) + 1
+            self._safe_addstr(h - 1, x, a, curses.color_pair(COLOR_PAIRS["text_dim"][0]))
+            x += len(a) + 2
 
     def draw_input_prompt(self, prompt: str) -> None:
+        if not self.stdscr: return
         try:
-            height, width = self.stdscr.getmaxyx()
-        except curses.error:
-            return
-        prompt_y = height - 2
-
-        try:
-            self.stdscr.addstr(prompt_y, 0, " " * (width - 1))
-        except curses.error:
-            pass
-
-        try:
-            self.stdscr.addstr(prompt_y, 1, prompt, curses.color_pair(COLOR_PAIRS["search_bracket"][0]) | curses.A_BOLD)
-            self.stdscr.move(prompt_y, len(prompt) + 1)
-        except curses.error:
-            pass
-
+            h, w = self.stdscr.getmaxyx()
+            self._safe_addstr(h - 2, 2, prompt, curses.color_pair(COLOR_PAIRS["brand_accent"][0]) | curses.A_BOLD)
+            self.stdscr.move(h - 2, 2 + len(prompt))
+        except curses.error: pass
         curses.echo()
         self.stdscr.refresh()
 
     def get_user_input(self, prompt: str) -> str:
         self.draw_input_prompt(prompt)
-
-        input_str = ""
         try:
-            input_str = self.stdscr.getstr().decode("utf-8")
-        except (KeyboardInterrupt, UnicodeDecodeError):
-            input_str = ""
-
+            res = self.stdscr.getstr().decode("utf-8")
+        except: res = ""
         curses.noecho()
-        return input_str.strip()
+        return res.strip()
 
     def get_priority_selection(self) -> Optional[Priority]:
-        options: List[tuple[str, Optional[Priority]]] = [(p.name, p) for p in Priority]
-        options.append(("Cancel", None))
-
-        try:
-            height, width = self.stdscr.getmaxyx()
-        except curses.error:
-            return None
-        menu_y = height // 2 - len(options) // 2
-        menu_x = max(0, (width - 20) // 2)
-
-        selected = 0
+        if not self.stdscr: return None
+        opts = [(p.name, p) for p in Priority] + [("Cancel", None)]
+        sel = 0
         while True:
             self.stdscr.clear()
-            try:
-                self.stdscr.border()
-            except curses.error:
-                pass
-            self._safe_addstr(menu_y - 2, menu_x - 5, "Select Priority:", curses.A_BOLD)
-
-            for i, (name, _) in enumerate(options):
-                marker = UI_SYMBOLS["selection"] if i == selected else "  "
-                color = curses.color_pair(COLOR_PAIRS["brand_accent"][0]) | curses.A_BOLD if i == selected else curses.color_pair(COLOR_PAIRS["text_dim"][0])
-                self._safe_addstr(menu_y + i, menu_x - 5, f"{marker} {name}", color)
-
+            self.stdscr.border()
+            h, w = self.stdscr.getmaxyx()
+            self._safe_addstr(h//2-3, w//2-8, " SELECT PRIORITY ", curses.A_BOLD | curses.A_REVERSE)
+            for i, (n, _) in enumerate(opts):
+                m = UI_SYMBOLS["selection"] if i == sel else " "
+                c = curses.color_pair(COLOR_PAIRS["brand_accent"][0]) | curses.A_BOLD if i == sel else curses.color_pair(COLOR_PAIRS["text_dim"][0])
+                self._safe_addstr(h//2-1+i, w//2-5, f"{m} {n}", c)
             self.stdscr.refresh()
-            key = self.stdscr.getch()
-
-            if key in (curses.KEY_UP, ord("k")) and selected > 0:
-                selected -= 1
-            elif key in (curses.KEY_DOWN, ord("j")) and selected < len(options) - 1:
-                selected += 1
-            elif key in (ord("\n"), ord("\r")):
-                return options[selected][1]
-            elif key in (ord("q"), ord("Q"), 27):
-                return None
-
-        curses.noecho()
+            k = self.stdscr.getch()
+            if k in (curses.KEY_UP, ord("k")) and sel > 0: sel -= 1
+            elif k in (curses.KEY_DOWN, ord("j")) and sel < len(opts)-1: sel += 1
+            elif k in (ord("\n"), ord("\r")): return opts[sel][1]
+            elif k in (ord("q"), 27): return None
 
     def handle_resize(self) -> None:
+        """Handle terminal resize events."""
         try:
-            self.stdscr.clear()
-            self.stdscr.refresh()
-        except curses.error:
+            # Update curses internal representation of screen size
+            curses.update_lines_cols()
+            if self.stdscr:
+                self.stdscr.clear() # Full clear only on resize to remove artifacts
+                self.stdscr.refresh()
+        except:
             pass
 
     def run(self) -> None:
-        import os
-        if not os.isatty(0):
-            print("Error: TaskMaster must be run in an interactive terminal.")
-            return
-
         try:
             self.stdscr = curses.initscr()
-        except curses.error as e:
-            print(f"Error: Could not initialize terminal - {e}")
-            return
-
-        try:
             curses.noecho()
             curses.cbreak()
             self.stdscr.keypad(True)
             curses.curs_set(0)
-        except curses.error as e:
-            curses.endwin()
-            print(f"Error: Could not configure terminal - {e}")
-            return
-
-        curses.start_color()
-        curses.use_default_colors()
-
-        if curses.can_change_color():
-            curses.init_color(CUSTOM_COLORS["brand_blue"], 204, 729, 922)
-
-        for name, (pair_id, fg, bg) in COLOR_PAIRS.items():
-            if isinstance(fg, int):
-                fg_val = fg
-            else:
-                fg_val = curses.COLOR_WHITE
-            if isinstance(bg, int) and bg >= 0:
-                bg_val = bg
-            else:
-                bg_val = -1
-            try:
-                curses.init_pair(pair_id, fg_val, bg_val)
-            except curses.error:
-                pass
-
-        try:
+            curses.start_color()
+            curses.use_default_colors()
+            for n, (pid, fg, bg) in COLOR_PAIRS.items():
+                try: curses.init_pair(pid, fg, bg if bg >= 0 else -1)
+                except: pass
+            
             self.load_tasks()
+            def handle_winch(sig, frame): self.resize_flag = True
+            signal.signal(signal.SIGWINCH, handle_winch)
 
             while True:
-                try:
-                    self.stdscr.clear()
-                except curses.error:
-                    pass
-
-                filtered_tasks = self.get_filtered_tasks()
-                if not filtered_tasks:
-                    self.selected_index = 0
-                else:
-                    self.selected_index = min(self.selected_index, len(filtered_tasks) - 1)
-
+                if self.resize_flag:
+                    self.handle_resize()
+                    self.resize_flag = False
+                
+                # Use erase() instead of clear() to prevent flickering
+                self.stdscr.erase()
+                filtered = self.get_filtered_tasks()
+                if filtered: self.selected_index = min(self.selected_index, len(filtered) - 1)
+                else: self.selected_index = 0
+                
                 self.draw_header()
                 self.draw_tasks()
                 self.draw_notification()
                 self.draw_footer()
+                self.stdscr.refresh()
 
-                try:
-                    self.stdscr.refresh()
-                except curses.error:
-                    pass
-
+                self.stdscr.timeout(100)
                 key = self.stdscr.getch()
-
-                if self.search_active:
-                    if key == 27:
-                        self.clear_search()
-                    elif key == curses.KEY_BACKSPACE or key == 127:
-                        self.backspace_search()
-                    elif key in (ord("\n"), ord("\r")):
-                        self.search_active = False
-                    elif key == curses.KEY_RESIZE:
-                        self.handle_resize()
-                    elif key == curses.KEY_UP:
-                        if self.selected_index > 0:
-                            self.selected_index -= 1
-                    elif key == curses.KEY_DOWN:
-                        if self.selected_index < len(filtered_tasks) - 1:
-                            self.selected_index += 1
-                    elif key == curses.KEY_HOME:
-                        self.selected_index = 0
-                    elif key == curses.KEY_END:
-                        self.selected_index = max(0, len(filtered_tasks) - 1)
-                    elif key == ord("\t"):
-                        self.clear_search()
-                        self.cycle_filter()
-                    elif key in (ord("q"), ord("Q")):
-                        break
-                    else:
-                        try:
-                            char = chr(key)
-                            if char.isprintable():
-                                self.update_search(char)
-                        except (ValueError, OverflowError):
-                            pass
-                    continue
+                if key == -1: continue
+                self.stdscr.timeout(-1)
 
                 if key == curses.KEY_RESIZE:
                     self.handle_resize()
-                elif key in (ord("q"), ord("Q")):
-                    break
-                elif key in (ord("n"), ord("N")):
-                    description = self.get_user_input("new task: ")
-                    if description:
-                        self.add_task(description)
-                elif key in (curses.KEY_UP, ord("k")):
-                    if self.selected_index > 0:
-                        self.selected_index -= 1
-                elif key in (curses.KEY_DOWN, ord("j")):
-                    filtered_tasks = self.get_filtered_tasks()
-                    if self.selected_index < len(filtered_tasks) - 1:
-                        self.selected_index += 1
-                elif key == curses.KEY_HOME:
-                    self.selected_index = 0
-                elif key == curses.KEY_END:
-                    filtered_tasks = self.get_filtered_tasks()
-                    self.selected_index = max(0, len(filtered_tasks) - 1)
-                elif key in (ord("d"), ord("D")):
-                    self.delete_task(self.selected_index)
-                elif key == ord(" "):
-                    self.toggle_task_status(self.selected_index)
-                elif key in (ord("\n"), ord("\r")):
-                    filtered_tasks = self.get_filtered_tasks()
-                    if 0 <= self.selected_index < len(filtered_tasks):
-                        current_task = filtered_tasks[self.selected_index]
-                        new_description = self.get_user_input(f"edit [{current_task.description[:30]}...]: ")
-                        if new_description:
-                            self.edit_task(self.selected_index, new_description)
-                elif key == ord("\t"):
-                    self.cycle_filter()
-                elif key in (ord("p"), ord("P")):
-                    filtered_tasks = self.get_filtered_tasks()
-                    if 0 <= self.selected_index < len(filtered_tasks):
-                        priority = self.get_priority_selection()
-                        if priority:
-                            self.change_priority(self.selected_index, priority)
-                elif key in (ord("s"), ord("S")):
-                    self.set_search()
-                elif key in (ord("r"), ord("R")):
-                    filtered_tasks = self.get_filtered_tasks()
-                    if key == ord("R"):
-                        self.toggle_sort_order()
+                    continue
+                elif key in (ord("q"), ord("Q")): break
+                
+                if self.search_active:
+                    if key == 27: self.clear_search()
+                    elif key in (curses.KEY_BACKSPACE, 127): self.backspace_search()
+                    elif key in (ord("\n"), ord("\r")): self.search_active = False
                     else:
-                        self.cycle_sort()
-                elif key == ord("M"):
-                    self.archive_done_tasks()
+                        try:
+                            c = chr(key)
+                            if c.isprintable(): self.update_search(c)
+                        except: pass
+                    continue
 
+                if key in (ord("n"), ord("N")):
+                    d = self.get_user_input(" New task: ")
+                    if d: self.add_task(d)
+                elif key in (curses.KEY_UP, ord("k")):
+                    if self.selected_index > 0: self.selected_index -= 1
+                elif key in (curses.KEY_DOWN, ord("j")):
+                    if self.selected_index < len(filtered) - 1: self.selected_index += 1
+                elif key in (ord("d"), ord("D")): self.delete_task(self.selected_index)
+                elif key == ord(" "): self.toggle_task_status(self.selected_index)
+                elif key in (ord("\n"), ord("\r"), ord("e"), ord("E")):
+                    if filtered:
+                        curr = filtered[self.selected_index]
+                        new_d = self.get_user_input(f" Edit: ")
+                        if new_d: self.edit_task(self.selected_index, new_d)
+                elif key == ord("\t"): self.cycle_filter()
+                elif key in (ord("p"), ord("P")):
+                    if filtered:
+                        p = self.get_priority_selection()
+                        if p: self.change_priority(self.selected_index, p)
+                elif key in (ord("s"), ord("S")): self.set_search()
+                elif key in (ord("u"), ord("U")):
+                    if filtered: self.set_due_date(self.selected_index)
+                elif key in (ord("r"), ord("R")):
+                    if key == ord("R"): self.toggle_sort_order()
+                    else: self.cycle_sort()
+                elif key in (ord("m"), ord("M")): self.archive_done_tasks()
         finally:
             curses.nocbreak()
-            if self.stdscr:
-                self.stdscr.keypad(False)
+            if self.stdscr: self.stdscr.keypad(False)
             curses.echo()
             curses.endwin()
 
+def main() -> None:
+    TaskMaster().run()
 
 if __name__ == "__main__":
-    app = TaskMaster()
-    app.run()
+    main()
